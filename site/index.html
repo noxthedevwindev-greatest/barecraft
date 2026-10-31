@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Barecraft — no launcher, just play</title>
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site">
+    <div class="brand">
+      <img src="icon.png" alt="">
+      <div>
+        <h1>BARE<span>CRAFT</span></h1>
+        <p>no launcher. no bloat. one file — double-click, play.</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <!-- CONFIG -->
+      <section class="card">
+        <h2>configure</h2>
+
+        <div class="field">
+          <label>shortcut name</label>
+          <input type="text" id="name" placeholder="Minecraft 1.20.1 (Fabric)">
+        </div>
+
+        <div class="field">
+          <label>player name (offline)</label>
+          <input type="text" id="player" value="Player">
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label>minecraft version</label>
+            <select id="mc"></select>
+          </div>
+          <div class="field">
+            <label>ram (mb)</label>
+            <select id="ram">
+              <option value="2048">2 GB</option>
+              <option value="4096" selected>4 GB</option>
+              <option value="6144">6 GB</option>
+              <option value="8192">8 GB</option>
+              <option value="12288">12 GB</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>loader</label>
+          <div class="loader-group" id="loaderGroup">
+            <div class="loader-btn" data-loader="vanilla">vanilla</div>
+            <div class="loader-btn" data-loader="fabric">fabric</div>
+            <div class="loader-btn" data-loader="forge">forge</div>
+            <div class="loader-btn" data-loader="neoforge">neoforge</div>
+          </div>
+        </div>
+
+        <div class="field" id="loaderVField" style="display:none">
+          <label>loader version (blank = latest/recommended)</label>
+          <input type="text" id="loaderV" placeholder="auto">
+        </div>
+
+        <div class="field" id="modsField">
+          <label>mods (modrinth)</label>
+          <div class="mods-chips" id="chips"></div>
+          <div class="mod-search-wrap">
+            <input type="search" id="modSearch" placeholder="search mods (pick a loader + version first)" disabled>
+            <div class="mod-results" id="modResults"></div>
+          </div>
+          <p class="note" id="modHint">pick a loader to add mods. vanilla + mods isn't a thing.</p>
+        </div>
+      </section>
+
+      <!-- RESULT -->
+      <section class="card">
+        <h2>get it</h2>
+        <div class="result-summary" id="summary">—</div>
+
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-tab="windows">windows</button>
+          <button class="tab" data-tab="macos">macOS</button>
+          <button class="tab" data-tab="linux">linux</button>
+        </div>
+
+        <div class="platform active" id="plat-windows">
+          <button class="btn" id="dl-windows">⬇ download setup.exe</button>
+          <p class="note">double-click it. it installs Java if needed, downloads the game, applies your loader + mods, and drops a shortcut on your desktop and Start Menu.</p>
+          <details>
+            <summary>or paste in powershell</summary>
+            <div class="runline">
+              <code id="line-windows"></code>
+              <button data-copy="line-windows">copy</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="platform" id="plat-macos">
+          <button class="btn" id="dl-macos">⬇ download executable</button>
+          <p class="note">macOS quarantines downloaded files. run this once in Terminal, then the file works:</p>
+          <div class="runline">
+            <code id="line-mac-run"></code>
+            <button data-copy="line-mac-run">copy</button>
+          </div>
+          <details>
+            <summary>or paste in terminal (no download)</summary>
+            <div class="runline">
+              <code id="line-macos"></code>
+              <button data-copy="line-macos">copy</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="platform" id="plat-linux">
+          <button class="btn" id="dl-linux">⬇ download executable</button>
+          <p class="note">then run it:</p>
+          <div class="runline">
+            <code id="line-linux-run"></code>
+            <button data-copy="line-linux-run">copy</button>
+          </div>
+          <details>
+            <summary>or paste in terminal (no download)</summary>
+            <div class="runline">
+              <code id="line-linux"></code>
+              <button data-copy="line-linux">copy</button>
+            </div>
+          </details>
+        </div>
+
+        <p class="note" style="margin-top:14px">
+          java edition only. works on Windows / macOS / Linux. no android, no bedrock.
+          the installer creates isolated instances — your existing <code>.minecraft</code> is never touched.
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site">
+    barecraft — open source, static site. source on
+    <a href="https://github.com/noxthedevwindev-greatest/barecraft">github</a>.
+    modrinth + mojang + fabric/forge/neoforge for the actual files.
+  </footer>
+
+  <div class="toast" id="toast">copied</div>
+  <script src="app.js"></script>
+</body>
+</html>
