@@ -47,7 +47,7 @@ windows (amd64) into `site/bin/`.
 ## Run locally (dev)
 
 ```sh
-cd site && python3 -m http.server 8000
+python3 -m http.server 8000
 ```
 
 Open http://localhost:8000. The site fetches its version list and support matrix

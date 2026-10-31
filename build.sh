@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 GO_BIN=${GO_BIN:-go}
-OUT=site/bin
+OUT=bin
 mkdir -p "$OUT"
 
 build() {
