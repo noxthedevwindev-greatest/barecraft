@@ -231,7 +231,7 @@
     $('#line-windows').textContent =
       `curl.exe -fsSL "${BASE}bin/barecraft-windows-amd64.exe" -o $env:TEMP\\barecraft.exe; & $env:TEMP\\barecraft.exe ${b64}`;
     $('#line-linux').textContent =
-      `a=$(uname -m); case $a in aarch64) a=arm64;; esac; curl -fsSL "${BASE}bin/barecraft-linux-$a" -o /tmp/barecraft && chmod +x /tmp/barecraft && /tmp/barecraft ${b64}`;
+      `a=$(uname -m); case $a in x86_64) a=amd64;; aarch64) a=arm64;; esac; curl -fsSL "${BASE}bin/barecraft-linux-$a" -o /tmp/barecraft && chmod +x /tmp/barecraft && /tmp/barecraft ${b64}`;
     $('#line-linux-run').textContent =
       `chmod +x ~/Downloads/${slug}-setup && ~/Downloads/${slug}-setup`;
     $('#line-macos').textContent =
