@@ -594,13 +594,24 @@ select { color-scheme: dark; cursor: pointer; }
   font-size: 11.5px;
   color: #e6e6e6;
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
 }
 
 .runline .copybtn {
   flex: none;
   padding: 0 14px;
   font-size: 8px;
+  min-width: 78px;
+}
+
+.runline .copybtn:focus-visible,
+details summary:focus-visible,
+.tab:focus-visible,
+.btn:focus-visible {
+  outline: 3px solid var(--grass-strong);
+  outline-offset: 3px;
 }
 
 .note {

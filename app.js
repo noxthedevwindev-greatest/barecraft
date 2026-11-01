@@ -29,16 +29,28 @@
   }
 
   async function copyText(s) {
-    try { await navigator.clipboard.writeText(s); toast('copied'); }
-    catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = s;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      toast('copied');
-    }
+    if (!s) { toast('nothing to copy'); return false; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(s);
+        toast('copied to clipboard');
+        return true;
+      }
+    } catch (e) { /* use the compatibility path below */ }
+
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+    ta.remove();
+    toast(copied ? 'copied to clipboard' : 'copy failed — select and copy manually');
+    return copied;
   }
 
   function b64url(str) {
@@ -498,7 +510,16 @@
     $('#dl-macos').addEventListener('click', () => download('macos'));
     $('#dl-linux').addEventListener('click', () => download('linux'));
     $$('[data-copy]').forEach((b) => {
-      b.addEventListener('click', () => copyText(document.getElementById(b.dataset.copy).textContent));
+      b.addEventListener('click', async () => {
+        const ok = await copyText(document.getElementById(b.dataset.copy).textContent);
+        if (ok) {
+          const original = b.dataset.originalLabel || b.textContent;
+          b.dataset.originalLabel = original;
+          b.textContent = 'copied!';
+          clearTimeout(b._copyTimer);
+          b._copyTimer = setTimeout(() => { b.textContent = original; }, 1400);
+        }
+      });
     });
 
     render();
