@@ -106,10 +106,12 @@ header.site {
   font-size: 10px;
   color: #ffff55;
   text-shadow: 2px 2px 0 #3f3f00;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   transform: rotate(-14deg);
   transform-origin: 50% 60%;
   animation: splash-pulse .44s ease-in-out infinite alternate;
-  margin-left: 14px;
+  margin-left: 18px;
   white-space: nowrap;
 }
 
@@ -583,6 +585,7 @@ select { color-scheme: dark; cursor: pointer; }
 /* sunken dark slot for code */
 .runline code {
   flex: 1;
+  min-width: 0; /* let the slot shrink — long lines scroll, never blow out the panel */
   background: #2e2e2e;
   border: 2px solid;
   border-color: #1a1a1a #6a6a6a #6a6a6a #1a1a1a;

