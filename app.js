@@ -1,9 +1,9 @@
 (() => {
   'use strict';
 
+  // repo root = site root (Pages serves from the repo root)
   const BASE = location.href.replace(/[^/]*$/, '');
-  const MAGIC = '__BARECRAFT_CONFIG__='; // unused; overlay uses binary magic
-  // binary overlay magic must match Go: "BRCFG1\x00" + u64 LE length + cfg bytes
+  // binary overlay: [cfg bytes][u64 LE length]["BRCFG1\0"] — must match Go
   const OVERLAY_MAGIC = 'BRCFG1\x00';
 
   const state = {
@@ -13,7 +13,7 @@
     loader: 'vanilla',
     loaderV: '',
     ram: 4096,
-    mods: [], // modrinth slugs
+    mods: [], // {slug, title, icon, bad}
   };
 
   // ---------- helpers ----------
@@ -25,15 +25,19 @@
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => t.classList.remove('show'), 1400);
+    toast._t = setTimeout(() => t.classList.remove('show'), 1600);
   }
 
   async function copyText(s) {
     try { await navigator.clipboard.writeText(s); toast('copied'); }
     catch (e) {
       const ta = document.createElement('textarea');
-      ta.value = s; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); ta.remove(); toast('copied');
+      ta.value = s;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      toast('copied');
     }
   }
 
@@ -42,6 +46,27 @@
     let bin = '';
     for (const b of bytes) bin += String.fromCharCode(b);
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function fmtN(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
+  }
+
+  function slugify(s) {
+    return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'instance';
+  }
+
+  function autoName() {
+    const L = state.loader === 'vanilla' ? '' : ` (${state.loader})`;
+    return `Minecraft ${state.mc}${L}`;
   }
 
   function buildCfg() {
@@ -53,143 +78,174 @@
       ram: state.ram,
     };
     if (state.loader !== 'vanilla' && state.loaderV.trim()) cfg.lv = state.loaderV.trim();
-    if (state.mods.length) cfg.mods = state.mods.slice();
+    if (state.mods.length) cfg.mods = state.mods.map((m) => m.slug);
     return cfg;
   }
 
-  function autoName() {
-    const L = state.loader === 'vanilla' ? '' : ` (${state.loader})`;
-    return `Minecraft ${state.mc}${L}`;
-  }
+  const cfgB64 = () => b64url(JSON.stringify(buildCfg()));
+  const cfgSlug = () => slugify(buildCfg().n);
 
-  function slugify(s) {
-    return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'instance';
-  }
-
-  function cfgB64() { return b64url(JSON.stringify(buildCfg())); }
-
-  function cfgSlug() { return slugify(buildCfg().n); }
-
-  // ---------- versions ----------
+  // ---------- mc versions ----------
   async function loadVersions() {
     let list = null;
-    // try live manifest first (CORS is open on piston-meta)
     try {
       const r = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
-      if (r.ok) {
-        const j = await r.json();
-        list = j.versions || [];
-      }
+      if (r.ok) list = (await r.json()).versions || [];
     } catch (e) { /* fall back */ }
     if (!list) {
-      try {
-        const r = await fetch(BASE + 'versions.json');
-        list = await r.json();
-      } catch (e) { list = []; }
+      try { list = await (await fetch(BASE + 'versions.json')).json(); }
+      catch (e) { list = []; }
     }
     const sel = $('#mc');
     sel.innerHTML = '';
-    const releases = list.filter(v => v.type === 'release');
-    const snaps = list.filter(v => v.type === 'snapshot');
-    // releases: newest first (manifest is already newest-first)
-    const relGroup = document.createElement('optgroup');
-    relGroup.label = 'releases';
-    releases.forEach(v => {
-      const o = document.createElement('option');
-      o.value = v.id; o.textContent = v.id;
-      relGroup.appendChild(o);
-    });
-    sel.appendChild(relGroup);
-    const snapGroup = document.createElement('optgroup');
-    snapGroup.label = 'snapshots (recent)';
-    snaps.slice(0, 40).forEach(v => {
-      const o = document.createElement('option');
-      o.value = v.id; o.textContent = v.id;
-      snapGroup.appendChild(o);
-    });
-    sel.appendChild(snapGroup);
+    const releases = list.filter((v) => v.type === 'release');
+    const snaps = list.filter((v) => v.type === 'snapshot');
 
-    // default: latest release
+    const g1 = document.createElement('optgroup');
+    g1.label = 'releases';
+    releases.forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = v.id;
+      g1.appendChild(o);
+    });
+    sel.appendChild(g1);
+
+    const g2 = document.createElement('optgroup');
+    g2.label = 'snapshots (recent)';
+    snaps.slice(0, 40).forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = v.id;
+      g2.appendChild(o);
+    });
+    sel.appendChild(g2);
+
     if (releases.length) state.mc = releases[0].id;
     sel.value = state.mc;
-    sel.addEventListener('change', () => { state.mc = sel.value; refreshLoaderAvailability(); render(); });
+    sel.addEventListener('change', () => {
+      state.mc = sel.value;
+      refreshLoaders();
+      scheduleCompatCheck();
+      render();
+    });
   }
 
-  // ---------- support (which loaders exist for which MC) ----------
+  // ---------- loader support matrix ----------
   let support = { fabric: [], forge: [], neoforge: [] };
   async function loadSupport() {
     try {
       const r = await fetch(BASE + 'support.json');
       if (r.ok) support = await r.json();
-    } catch (e) { /* leave empty => all enabled */ }
+    } catch (e) { /* unknown => allow, setup reports errors */ }
   }
 
   function loaderSupported(loader, mc) {
     if (loader === 'vanilla') return true;
     const arr = support[loader];
-    if (!arr || !arr.length) return true; // unknown => allow, setup will error
+    if (!arr || !arr.length) return true;
     return arr.indexOf(mc) !== -1;
   }
 
-  // ---------- loader buttons ----------
-  function refreshLoaderAvailability() {
-    $$('.loader-btn').forEach(btn => {
+  function refreshLoaders() {
+    $$('.loader-btn').forEach((btn) => {
       const l = btn.dataset.loader;
       const ok = loaderSupported(l, state.mc);
-      btn.classList.toggle('disabled', !ok);
+      btn.disabled = !ok;
       btn.title = ok ? '' : `no ${l} build for Minecraft ${state.mc}`;
     });
-    if (!loaderSupported(state.loader, state.mc)) {
-      state.loader = 'vanilla';
-      $$('.loader-btn').forEach(b => b.classList.toggle('active', b.dataset.loader === state.loader));
-      $('#loaderVField').style.display = 'none';
-      $('#modsField').style.display = state.loader === 'vanilla' ? 'none' : 'block';
-      $('#modHint').textContent = state.loader === 'vanilla'
-        ? 'pick a loader to add mods. vanilla + mods isn\'t a thing.'
-        : 'search modrinth. results filtered to this version + loader.';
-      $('#modSearch').disabled = state.loader === 'vanilla';
+    if (!loaderSupported(state.loader, state.mc)) setLoader('vanilla');
+  }
+
+  function setLoader(l) {
+    state.loader = l;
+    $$('.loader-btn').forEach((b) => b.classList.toggle('on', b.dataset.loader === l));
+    const modded = l !== 'vanilla';
+    $('#loaderVField').style.display = modded ? '' : 'none';
+    $('#modsHeader').style.display = modded ? '' : 'none';
+    $('#modsWrap').style.display = modded ? '' : 'none';
+    $('#vanillaHint').style.display = modded ? 'none' : '';
+    if (!modded) {
+      state.mods = [];
+      renderChips();
+      closeResults();
     }
   }
 
-  // ---------- mods ----------
+  // ---------- mod search ----------
   let searchTimer = null;
-  async function searchMods(q) {
-    if (!q || q.length < 2) { closeResults(); return; }
-    const facets = [['project_type:mod'], [`versions:${state.mc}`]];
-    if (state.loader !== 'vanilla') facets.push([`categories:${state.loader}`]);
-    const url = 'https://api.modrinth.com/v2/search?query=' + encodeURIComponent(q) +
-      '&facets=' + encodeURIComponent(JSON.stringify(facets)) + '&limit=8';
-    let data;
-    try { const r = await fetch(url); if (!r.ok) throw 0; data = await r.json(); }
-    catch (e) { return; }
-    const box = $('#modResults');
-    box.innerHTML = '';
-    (data.hits || []).forEach(h => {
-      const row = document.createElement('div');
-      row.className = 'mod-result';
-      row.innerHTML = `
-        <img src="${h.icon_url || ''}" alt="" onerror="this.style.visibility='hidden'">
-        <div>
-          <div class="title">${escapeHtml(h.title)}</div>
-          <div class="slug">${escapeHtml(h.slug)}${h.author ? ' · ' + escapeHtml(h.author) : ''}</div>
-        </div>`;
-      row.addEventListener('click', () => { addMod(h.slug); closeResults(); $('#modSearch').value = ''; });
-      box.appendChild(row);
-    });
-    box.classList.toggle('open', (data.hits || []).length > 0);
+  let resultRows = [];
+  let kbIndex = -1;
+
+  function closeResults() {
+    $('#modResults').classList.remove('open');
+    kbIndex = -1;
   }
 
-  function closeResults() { $('#modResults').classList.remove('open'); }
+  function fmtFacets() {
+    const facets = [['project_type:mod'], [`versions:${state.mc}`]];
+    if (state.loader !== 'vanilla') facets.push([`categories:${state.loader}`]);
+    return facets;
+  }
 
-  function addMod(slug) {
-    if (state.mods.indexOf(slug) !== -1) return;
-    state.mods.push(slug);
+  async function searchMods(q) {
+    if (!q || q.length < 2) { closeResults(); return; }
+    const url = 'https://api.modrinth.com/v2/search?query=' + encodeURIComponent(q) +
+      '&facets=' + encodeURIComponent(JSON.stringify(fmtFacets())) + '&limit=8';
+    let data;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw 0;
+      data = await r.json();
+    } catch (e) {
+      const box = $('#modResults');
+      box.innerHTML = '<div class="mod-empty">search failed — offline?</div>';
+      box.classList.add('open');
+      return;
+    }
+    const box = $('#modResults');
+    const hits = data.hits || [];
+    box.innerHTML = '';
+    resultRows = [];
+
+    if (!hits.length) {
+      box.innerHTML = '<div class="mod-empty">no mods match</div>';
+      box.classList.add('open');
+      return;
+    }
+
+    hits.forEach((h) => {
+      const row = document.createElement('div');
+      row.className = 'mod-result';
+      row.setAttribute('role', 'option');
+      row.innerHTML = `
+        <img src="${escapeHtml(h.icon_url || '')}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="mi">
+          <div class="title">${escapeHtml(h.title)}</div>
+          <div class="sub">${escapeHtml(h.slug)}${h.author ? ' · ' + escapeHtml(h.author) : ''}</div>
+        </div>
+        <div class="dl">▼ ${fmtN(h.downloads || 0)}</div>`;
+      row.addEventListener('click', () => {
+        addMod(h.slug, h.title, h.icon_url);
+        closeResults();
+        $('#modSearch').value = '';
+      });
+      box.appendChild(row);
+      resultRows.push(row);
+    });
+    box.classList.add('open');
+  }
+
+  function addMod(slug, title, icon) {
+    if (state.mods.some((m) => m.slug === slug)) return;
+    state.mods.push({ slug, title, icon: icon || '', bad: null });
     renderChips();
+    scheduleCompatCheck();
     render();
   }
 
   function removeMod(slug) {
-    state.mods = state.mods.filter(s => s !== slug);
+    state.mods = state.mods.filter((m) => m.slug !== slug);
     renderChips();
     render();
   }
@@ -197,37 +253,74 @@
   function renderChips() {
     const c = $('#chips');
     c.innerHTML = '';
-    state.mods.forEach(s => {
+    state.mods.forEach((m) => {
       const chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.innerHTML = `${escapeHtml(s)} <button title="remove" aria-label="remove ${escapeHtml(s)}">×</button>`;
-      chip.querySelector('button').addEventListener('click', () => removeMod(s));
+      chip.className = 'chip' + (m.bad ? ' bad' : '');
+      chip.title = m.bad || m.slug;
+      chip.innerHTML = `
+        ${m.icon ? `<img src="${escapeHtml(m.icon)}" alt="" onerror="this.remove()">` : ''}
+        <span class="mname">${escapeHtml(m.title)}</span>
+        <button class="rm" title="remove ${escapeHtml(m.title)}" aria-label="remove ${escapeHtml(m.title)}">×</button>`;
+      chip.querySelector('.rm').addEventListener('click', () => removeMod(m.slug));
       c.appendChild(chip);
     });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // ---------- mod compat flags ----------
+  let compatTimer = null;
+  function scheduleCompatCheck() {
+    clearTimeout(compatTimer);
+    compatTimer = setTimeout(checkCompat, 350);
+  }
+
+  async function checkCompat() {
+    if (state.loader === 'vanilla' || !state.mods.length) return;
+    const ids = state.mods.map((m) => m.slug);
+    const url = 'https://api.modrinth.com/v2/projects?ids=' + encodeURIComponent(JSON.stringify(ids));
+    let data;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return;
+      data = await r.json();
+    } catch (e) { return; }
+    const bySlug = {};
+    data.forEach((p) => { bySlug[p.slug] = p; });
+    state.mods.forEach((m) => {
+      const p = bySlug[m.slug];
+      if (!p) { m.bad = null; return; }
+      const gv = p.game_versions || [];
+      const ld = (p.loaders || []).map((x) => String(x).toLowerCase());
+      if (!gv.includes(state.mc)) m.bad = `no Minecraft ${state.mc} build`;
+      else if (state.loader !== 'vanilla' && !ld.includes(state.loader)) m.bad = `no ${state.loader} build — needs ${ld.join('/') || 'other loader'}`;
+      else m.bad = null;
+    });
+    renderChips();
   }
 
   // ---------- render ----------
   function render() {
     state.name = $('#name').value;
     state.player = $('#player').value;
-    state.ram = parseInt($('#ram').value, 10) || 4096;
     state.loaderV = $('#loaderV').value;
 
     const cfg = buildCfg();
     const b64 = cfgB64();
     const slug = cfgSlug();
 
-    // summary
-    $('#summary').textContent =
-      `${cfg.n}  ·  MC ${state.mc}  ·  ${state.loader}` +
-      (state.loader !== 'vanilla' ? `  ·  ${state.ram/1024}GB` : `  ·  ${state.ram/1024}GB`) +
-      (state.mods.length ? `  ·  ${state.mods.length} mod(s)` : '');
+    // summary badges
+    const badges = $('#summary');
+    const parts = [
+      [cfg.n, true],
+      ['MC ' + state.mc, false],
+      [state.loader, false],
+      [(state.ram / 1024) + ' GB', false],
+    ];
+    if (state.mods.length) parts.push([state.mods.length + (state.mods.length === 1 ? ' mod' : ' mods'), true]);
+    badges.innerHTML = parts
+      .map(([t, hl]) => `<span class="${hl ? 'nb' : ''}">${escapeHtml(t)}</span>`)
+      .join('');
 
-    // lines
+    // terminal / run lines
     $('#line-windows').textContent =
       `curl.exe -fsSL "${BASE}bin/barecraft-windows-amd64.exe" -o $env:TEMP\\barecraft.exe; & $env:TEMP\\barecraft.exe ${b64}`;
     $('#line-linux').textContent =
@@ -241,6 +334,24 @@
   }
 
   // ---------- download (config baked into the binary via overlay) ----------
+  function linuxArchFromUA() {
+    return /aarch64|arm64/i.test(navigator.userAgent || '') ? 'arm64' : 'amd64';
+  }
+
+  async function macArch() {
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+        const v = await navigator.userAgentData.getHighEntropyValues(['architecture']);
+        const a = (v.architecture || '').toLowerCase();
+        if (/^(arm|arm64|aarch64)$/.test(a)) return 'arm64';
+        if (/^(x86|x86_64|amd64)$/.test(a)) return 'amd64';
+      }
+    } catch (e) { /* fall through */ }
+    // Safari on Apple Silicon often reports Intel — default to arm64 (the
+    // terminal one-liner uses uname -m and is always correct)
+    return 'arm64';
+  }
+
   async function download(platform) {
     let binName, fileName, arch;
     if (platform === 'windows') {
@@ -255,96 +366,71 @@
       binName = `barecraft-linux-${arch}`;
       fileName = `${cfgSlug()}-setup`;
     }
-    const cfg = cfgB64();
-    let buf;
+
+    const btn = $('#dl-' + platform);
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<span class="spin"></span> packaging…';
+    btn.disabled = true;
+
     try {
       const r = await fetch(BASE + 'bin/' + binName);
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      buf = new Uint8Array(await r.arrayBuffer());
+      const buf = new Uint8Array(await r.arrayBuffer());
+      const cfgBytes = new TextEncoder().encode(cfgB64());
+      const out = new Uint8Array(buf.length + cfgBytes.length + 8 + 7);
+      out.set(buf, 0);
+      out.set(cfgBytes, buf.length);
+      const lenOff = buf.length + cfgBytes.length;
+      new DataView(out.buffer).setBigUint64(lenOff, BigInt(cfgBytes.length), true);
+      out.set(new TextEncoder().encode(OVERLAY_MAGIC), lenOff + 8);
+
+      const blob = new Blob([out], { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      toast('downloaded ' + fileName);
     } catch (e) {
       toast('download failed: ' + e.message);
-      return;
+    } finally {
+      btn.dataset.busy = '';
+      btn.innerHTML = orig;
+      btn.disabled = false;
     }
-    // overlay: cfg bytes + u64 LE length + magic "BRCFG1\0"
-    const cfgBytes = new TextEncoder().encode(cfg);
-    const out = new Uint8Array(buf.length + cfgBytes.length + 8 + 7);
-    out.set(buf, 0);
-    out.set(cfgBytes, buf.length);
-    const lenOff = buf.length + cfgBytes.length;
-    const dv = new DataView(out.buffer);
-    dv.setBigUint64(lenOff, BigInt(cfgBytes.length), true);
-    const magic = new TextEncoder().encode('BRCFG1\x00');
-    out.set(magic, lenOff + 8);
-    const blob = new Blob([out], { type: 'application/octet-stream' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    toast('downloaded ' + fileName);
-  }
-
-  function linuxArchFromUA() {
-    const ua = navigator.userAgent || '';
-    if (/aarch64|arm64/i.test(ua)) return 'arm64';
-    return 'amd64';
-  }
-
-  async function macArch() {
-    try {
-      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-        const v = await navigator.userAgentData.getHighEntropyValues(['architecture']);
-        const a = (v.architecture || '').toLowerCase();
-        if (a === 'arm' || a === 'arm64' || a === 'aarch64') return 'arm64';
-        if (a === 'x86' || a === 'x86_64' || a === 'amd64') return 'amd64';
-      }
-    } catch (e) {}
-    const ua = navigator.userAgent || '';
-    // Safari on Apple Silicon still reports Intel in many UAs; default to arm64
-    // for modern macs but let the user override via the terminal line if wrong.
-    if (/Intel Mac OS X/i.test(ua) && !/AppleWebKit.*Version\/1[6-9]/i.test(ua)) {
-      // heuristic: older Safari on Intel
-    }
-    return 'arm64';
   }
 
   // ---------- init ----------
   async function init() {
     await Promise.all([loadVersions(), loadSupport()]);
-    refreshLoaderAvailability();
+    setLoader('vanilla');
+    refreshLoaders();
     render();
 
     // loader buttons
-    $$('.loader-btn').forEach(btn => {
+    $$('.loader-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.classList.contains('disabled')) return;
-        state.loader = btn.dataset.loader;
-        $$('.loader-btn').forEach(b => b.classList.toggle('active', b === btn));
-        $('#loaderVField').style.display = state.loader === 'vanilla' ? 'none' : 'block';
-        const modsOn = state.loader !== 'vanilla';
-        $('#modsField').style.display = modsOn ? 'block' : 'none';
-        $('#modHint').textContent = modsOn
-          ? 'search modrinth. results filtered to this version + loader.'
-          : 'pick a loader to add mods. vanilla + mods isn\'t a thing.';
-        $('#modSearch').disabled = !modsOn;
-        if (!modsOn) { state.mods = []; renderChips(); }
-        refreshLoaderAvailability();
+        if (btn.disabled) return;
+        setLoader(btn.dataset.loader);
+        scheduleCompatCheck();
         render();
       });
     });
-    // default active
-    $$('.loader-btn')[0].classList.add('active');
 
     // inputs
-    ['name','player','ram','loaderV'].forEach(id => {
-      const el = $('#' + id);
-      el.addEventListener('input', () => {
-        if (id === 'name') state.name = el.value;
-        if (id === 'player') state.player = el.value;
-        if (id === 'ram') state.ram = parseInt(el.value, 10) || 4096;
-        if (id === 'loaderV') state.loaderV = el.value;
+    ['name', 'player', 'loaderV'].forEach((id) => {
+      $('#' + id).addEventListener('input', render);
+    });
+
+    // ram segmented control
+    $$('#ramSeg button').forEach((b) => {
+      b.addEventListener('click', () => {
+        $$('#ramSeg button').forEach((x) => x.classList.toggle('on', x === b));
+        state.ram = parseInt(b.dataset.ram, 10) || 4096;
         render();
       });
     });
@@ -355,7 +441,28 @@
       clearTimeout(searchTimer);
       const q = ms.value.trim();
       if (q.length < 2) { closeResults(); return; }
-      searchTimer = setTimeout(() => searchMods(q), 300);
+      searchTimer = setTimeout(() => searchMods(q), 280);
+    });
+    ms.addEventListener('keydown', (e) => {
+      if (!$('#modResults').classList.contains('open')) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!resultRows.length) return;
+        kbIndex = e.key === 'ArrowDown'
+          ? (kbIndex + 1) % resultRows.length
+          : (kbIndex - 1 + resultRows.length) % resultRows.length;
+        resultRows.forEach((r, i) => r.classList.toggle('kb', i === kbIndex));
+        resultRows[kbIndex].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        (resultRows[kbIndex] && resultRows[kbIndex].classList.contains('kb')
+          ? resultRows[kbIndex]
+          : resultRows[0])?.click();
+        closeResults();
+        ms.value = '';
+      } else if (e.key === 'Escape') {
+        closeResults();
+      }
     });
     ms.addEventListener('blur', () => setTimeout(closeResults, 150));
     document.addEventListener('click', (e) => {
@@ -363,24 +470,21 @@
     });
 
     // tabs
-    $$('.tab').forEach(t => {
+    $$('.tab').forEach((t) => {
       t.addEventListener('click', () => {
-        $$('.tab').forEach(x => x.classList.toggle('active', x === t));
-        $$('.platform').forEach(p => p.classList.toggle('active', p.id === 'plat-' + t.dataset.tab));
+        $$('.tab').forEach((x) => x.classList.toggle('on', x === t));
+        $$('.platform').forEach((p) => p.classList.toggle('on', p.id === 'plat-' + t.dataset.tab));
       });
     });
 
-    // download buttons
+    // download + copy
     $('#dl-windows').addEventListener('click', () => download('windows'));
     $('#dl-macos').addEventListener('click', () => download('macos'));
     $('#dl-linux').addEventListener('click', () => download('linux'));
-
-    // copy buttons
-    $$('[data-copy]').forEach(b => {
+    $$('[data-copy]').forEach((b) => {
       b.addEventListener('click', () => copyText(document.getElementById(b.dataset.copy).textContent));
     });
 
-    // re-render on mc change handled in loadVersions
     render();
   }
 
