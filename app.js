@@ -86,21 +86,11 @@
   const cfgSlug = () => slugify(buildCfg().n);
 
   // ---------- mc versions ----------
-  async function loadVersions() {
-    let list = null;
-    try {
-      const r = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
-      if (r.ok) list = (await r.json()).versions || [];
-    } catch (e) { /* fall back */ }
-    if (!list) {
-      try { list = await (await fetch(BASE + 'versions.json')).json(); }
-      catch (e) { list = []; }
-    }
+  function fillVersions(list) {
     const sel = $('#mc');
-    sel.innerHTML = '';
     const releases = list.filter((v) => v.type === 'release');
     const snaps = list.filter((v) => v.type === 'snapshot');
-
+    sel.innerHTML = '';
     const g1 = document.createElement('optgroup');
     g1.label = 'releases';
     releases.forEach((v) => {
@@ -110,7 +100,6 @@
       g1.appendChild(o);
     });
     sel.appendChild(g1);
-
     const g2 = document.createElement('optgroup');
     g2.label = 'snapshots (recent)';
     snaps.slice(0, 40).forEach((v) => {
@@ -120,11 +109,27 @@
       g2.appendChild(o);
     });
     sel.appendChild(g2);
-
-    if (releases.length) state.mc = releases[0].id;
+    // keep the current choice if it still exists (incl. snapshots), else newest release
+    const ids = new Set(list.map((v) => v.id));
+    if (!ids.has(state.mc) && releases.length) state.mc = releases[0].id;
     sel.value = state.mc;
-    sel.addEventListener('change', () => {
-      state.mc = sel.value;
+    render(); // badges/lines recompute with the version known
+  }
+
+  async function loadVersions() {
+    // baked same-origin list first: fills the select instantly so the UI is
+    // usable even when mojang's manifest is slow, blocked or CORS-less
+    try { fillVersions(await (await fetch(BASE + 'versions.json')).json()); } catch (e) { /* cached page */ }
+    // then refresh from the live manifest (timeout-guarded), preserving the pick
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json', { signal: ctl.signal });
+      clearTimeout(timer);
+      if (r.ok) fillVersions((await r.json()).versions || []);
+    } catch (e) { /* baked list stands */ }
+    $('#mc').addEventListener('change', () => {
+      state.mc = $('#mc').value;
       refreshLoaders();
       scheduleCompatCheck();
       render();
@@ -406,6 +411,17 @@
 
   // ---------- init ----------
   async function init() {
+    // random splash, and render immediately so the page never sits half-empty
+    // while the version/support fetches finish
+    const SPLASHES = [
+      'No launcher!', 'Also try Prism!', 'Just java, dude!', 'Double-click it!',
+      'Runs on your potato!', 'Now with more cobble!', 'Zero GUIs used!',
+      'Offline mode!', 'Emeralds not included!', 'Mojang-proof!',
+    ];
+    const splash = $('#splash');
+    if (splash) splash.textContent = SPLASHES[(Math.random() * SPLASHES.length) | 0];
+    render();
+
     await Promise.all([loadVersions(), loadSupport()]);
     setLoader('vanilla');
     refreshLoaders();

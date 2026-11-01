@@ -6,6 +6,9 @@
   <title>Barecraft — no launcher, just play</title>
   <meta name="description" content="Pick a Minecraft version, loader and mods. Get one file. Double-click it. Play. No launcher, no bloat.">
   <link rel="icon" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,15 +16,13 @@
     <div class="brand">
       <img src="icon.png" alt="">
       <div>
-        <h1>BARE<span>CRAFT</span></h1>
+        <h1>BARE<span>CRAFT</span><span class="splash" id="splash">No launcher!</span></h1>
         <p>no launcher. no bloat. one file — double-click, play.</p>
       </div>
     </div>
     <div class="steps">
       <div class="step"><b>1</b> configure</div>
-      <div class="sep"></div>
       <div class="step"><b>2</b> download</div>
-      <div class="sep"></div>
       <div class="step"><b>3</b> double-click &amp; play</div>
     </div>
   </header>
@@ -48,35 +49,35 @@
         <div class="row">
           <div class="field">
             <label for="mc">minecraft version</label>
-            <select id="mc"></select>
+            <select id="mc"><option value="" disabled selected>loading versions…</option></select>
           </div>
           <div class="field">
             <label>memory</label>
             <div class="seg" id="ramSeg">
-              <button type="button" data-ram="2048">2G</button>
-              <button type="button" data-ram="4096" class="on">4G</button>
-              <button type="button" data-ram="6144">6G</button>
-              <button type="button" data-ram="8192">8G</button>
-              <button type="button" data-ram="12288">12G</button>
+              <button type="button" class="mc-btn" data-ram="2048">2G</button>
+              <button type="button" class="mc-btn on" data-ram="4096">4G</button>
+              <button type="button" class="mc-btn" data-ram="6144">6G</button>
+              <button type="button" class="mc-btn" data-ram="8192">8G</button>
+              <button type="button" class="mc-btn" data-ram="12288">12G</button>
             </div>
           </div>
         </div>
 
         <h3>loader</h3>
         <div class="loader-group" id="loaderGroup">
-          <button type="button" class="loader-btn on" data-loader="vanilla">
+          <button type="button" class="mc-btn loader-btn on" data-loader="vanilla">
             <span class="ld-name">vanilla</span>
             <span class="ld-desc">no mods</span>
           </button>
-          <button type="button" class="loader-btn" data-loader="fabric">
+          <button type="button" class="mc-btn loader-btn" data-loader="fabric">
             <span class="ld-name">fabric</span>
             <span class="ld-desc">fast &amp; light</span>
           </button>
-          <button type="button" class="loader-btn" data-loader="forge">
+          <button type="button" class="mc-btn loader-btn" data-loader="forge">
             <span class="ld-name">forge</span>
             <span class="ld-desc">classic mods</span>
           </button>
-          <button type="button" class="loader-btn" data-loader="neoforge">
+          <button type="button" class="mc-btn loader-btn" data-loader="neoforge">
             <span class="ld-name">neoforge</span>
             <span class="ld-desc">modern forge</span>
           </button>
@@ -95,7 +96,7 @@
             <input type="search" id="modSearch" placeholder="search modrinth…" autocomplete="off">
             <div class="mod-results" id="modResults" role="listbox"></div>
           </div>
-          <p class="hint" id="modHint">results are filtered to this version + loader. unsupported picks get flagged when you change version later.</p>
+          <p class="hint">results are filtered to this version + loader. unsupported picks get flagged when you change version later.</p>
         </div>
         <p class="hint" id="vanillaHint">vanilla runs the game exactly as mojang ships it. pick a loader to add mods.</p>
       </section>
@@ -107,14 +108,14 @@
         <div class="badges" id="summary"></div>
 
         <div class="tabs" id="tabs">
-          <button class="tab on" data-tab="windows">windows</button>
-          <button class="tab" data-tab="macos">macOS</button>
-          <button class="tab" data-tab="linux">linux</button>
+          <button class="mc-btn tab on" data-tab="windows">windows</button>
+          <button class="mc-btn tab" data-tab="macos">macOS</button>
+          <button class="mc-btn tab" data-tab="linux">linux</button>
         </div>
 
         <div class="platform on" id="plat-windows">
-          <button class="btn primary" id="dl-windows">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
+          <button class="btn" id="dl-windows">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
             download setup.exe
           </button>
           <p class="note">double-click it. it installs Java if needed, downloads the game, applies your loader + mods, and drops shortcuts on your desktop and start menu.</p>
@@ -122,45 +123,45 @@
             <summary>or paste into powershell</summary>
             <div class="runline">
               <code id="line-windows"></code>
-              <button class="copybtn" data-copy="line-windows">copy</button>
+              <button class="mc-btn copybtn" data-copy="line-windows">copy</button>
             </div>
           </details>
         </div>
 
         <div class="platform" id="plat-macos">
-          <button class="btn primary" id="dl-macos">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
+          <button class="btn" id="dl-macos">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
             download executable
           </button>
           <p class="run-label">then run this once in terminal — it clears the gatekeeper quarantine flag and starts the install:</p>
           <div class="runline">
             <code id="line-mac-run"></code>
-            <button class="copybtn" data-copy="line-mac-run">copy</button>
+            <button class="mc-btn copybtn" data-copy="line-mac-run">copy</button>
           </div>
           <details>
             <summary>or paste the whole install into terminal</summary>
             <div class="runline">
               <code id="line-macos"></code>
-              <button class="copybtn" data-copy="line-macos">copy</button>
+              <button class="mc-btn copybtn" data-copy="line-macos">copy</button>
             </div>
           </details>
         </div>
 
         <div class="platform" id="plat-linux">
-          <button class="btn primary" id="dl-linux">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
+          <button class="btn" id="dl-linux">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v12.17l-4.59-4.58L6 12l6 6 6-6-1.41-1.41L13 15.17V3h-1z"/><path d="M5 19h14v1H5z"/></svg>
             download executable
           </button>
           <p class="run-label">then:</p>
           <div class="runline">
             <code id="line-linux-run"></code>
-            <button class="copybtn" data-copy="line-linux-run">copy</button>
+            <button class="mc-btn copybtn" data-copy="line-linux-run">copy</button>
           </div>
           <details>
             <summary>or paste the whole install into terminal</summary>
             <div class="runline">
               <code id="line-linux"></code>
-              <button class="copybtn" data-copy="line-linux">copy</button>
+              <button class="mc-btn copybtn" data-copy="line-linux">copy</button>
             </div>
           </details>
         </div>
